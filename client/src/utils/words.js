@@ -1,0 +1,23 @@
+// Mirror of server/src/words.js — kept in sync manually
+export const WORDS = [
+  'cat', 'dog', 'fish', 'bird', 'rabbit', 'elephant', 'lion', 'tiger',
+  'bear', 'horse', 'cow', 'pig', 'sheep', 'duck', 'frog', 'snake',
+  'monkey', 'penguin', 'owl', 'butterfly', 'crab', 'octopus', 'shark',
+  'whale', 'giraffe', 'zebra', 'crocodile', 'rhinoceros', 'hedgehog',
+  'apple', 'banana', 'strawberry', 'watermelon', 'pineapple', 'grapes',
+  'pizza', 'hamburger', 'hot dog', 'cake', 'cookie', 'donut', 'bread',
+  'ice cream', 'lollipop', 'peas', 'carrot', 'broccoli', 'mushroom',
+  'car', 'bus', 'bicycle', 'airplane', 'boat', 'train', 'truck',
+  'motorcycle', 'helicopter', 'ambulance', 'fire truck', 'sailboat',
+  'chair', 'table', 'clock', 'telephone', 'television', 'computer',
+  'book', 'pencil', 'scissors', 'key', 'lamp', 'umbrella', 'hat',
+  'shoe', 'sock', 'glasses', 'camera', 'guitar', 'drum', 'piano',
+  'hammer', 'saw', 'shovel', 'axe', 'knife', 'fork', 'spoon', 'cup',
+  'bottle', 'bucket', 'backpack', 'suitcase', 'tent',
+  'tree', 'flower', 'sun', 'moon', 'star', 'cloud', 'mountain',
+  'rainbow', 'leaf', 'cactus', 'palm tree', 'mushroom',
+  'house', 'castle', 'bridge', 'lighthouse', 'hospital',
+  'eye', 'ear', 'nose', 'mouth', 'hand', 'foot', 'face',
+  'soccer ball', 'basketball', 'baseball', 'tennis racquet', 'crown',
+  'diamond', 'heart', 'star', 'arrow', 'flag',
+];
