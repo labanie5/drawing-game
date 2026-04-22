@@ -14,7 +14,7 @@ function saveSession(code, name) {
 export default function Home({ onJoin }) {
   const roomParam = new URLSearchParams(window.location.search).get('room');
   const [view, setView] = useState(roomParam ? 'join' : 'main');
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() => localStorage.getItem('drawrace_name') || '');
   const [rounds, setRounds] = useState(3);
   const [code, setCode] = useState(roomParam ? roomParam.toUpperCase() : '');
   const [error, setError] = useState('');
@@ -25,12 +25,14 @@ export default function Home({ onJoin }) {
 
   useSocketEvent('room-created', ({ code, players, rounds }) => {
     setLoading(false);
+    localStorage.setItem('drawrace_name', name.trim());
     saveSession(code, name.trim());
     onJoin({ socket, code, players, rounds, myId: socket.id, persistentId, isHost: true });
   });
 
   useSocketEvent('room-joined', ({ code, players, rounds }) => {
     setLoading(false);
+    localStorage.setItem('drawrace_name', name.trim());
     saveSession(code, name.trim());
     onJoin({ socket, code, players, rounds, myId: socket.id, persistentId, isHost: false });
   });

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Home from './pages/Home.jsx';
 import Lobby from './pages/Lobby.jsx';
 import Game from './pages/Game.jsx';
-import { connectSocket, useSocketEvent } from './hooks/useSocket.js';
+import { connectSocket, getSocket, useSocketEvent } from './hooks/useSocket.js';
 
 function getOrCreatePersistentId() {
   let id = localStorage.getItem('drawrace_pid');
@@ -90,6 +90,25 @@ export default function App() {
     setGameState(prev => ({ ...prev, ...state }));
     setPage('game');
   }
+
+  // Re-join room automatically when socket reconnects (e.g. switching apps on mobile)
+  useEffect(() => {
+    if (page === 'home' || page === 'loading') return;
+    const socket = getSocket();
+
+    function handleReconnect() {
+      const saved = localStorage.getItem('drawrace_session');
+      if (!saved) return;
+      try {
+        const { code, name } = JSON.parse(saved);
+        const persistentId = getOrCreatePersistentId();
+        socket.emit('join-room', { code, name, persistentId });
+      } catch {}
+    }
+
+    socket.io.on('reconnect', handleReconnect);
+    return () => socket.io.off('reconnect', handleReconnect);
+  }, [page]);
 
   function goHome() {
     localStorage.removeItem('drawrace_session');

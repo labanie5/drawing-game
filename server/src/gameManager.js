@@ -1,8 +1,10 @@
 const { getRandomWord } = require('./words');
 
 const ROUND_DURATION = 80;
+const DISCONNECT_GRACE_MS = 30000;
 
 const rooms = new Map();
+const disconnectTimers = new Map(); // persistentId -> timer
 
 function generateCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -36,10 +38,11 @@ function joinRoom({ code, playerId, playerName, persistentId }) {
   const room = rooms.get(code);
   if (!room) return { error: 'Room not found' };
 
-  // Reconnect by persistentId
+  // Reconnect by persistentId — cancel any pending removal timer
   if (persistentId) {
     const existing = room.players.find(p => p.persistentId === persistentId);
     if (existing) {
+      cancelRemoval(persistentId);
       existing.id = playerId;
       return { room, reconnected: true, player: existing };
     }
@@ -53,9 +56,47 @@ function joinRoom({ code, playerId, playerName, persistentId }) {
   return { room };
 }
 
-function removePlayer(code, playerId) {
+function scheduleRemoval(code, persistentId, io) {
+  cancelRemoval(persistentId); // clear any existing timer first
+  const timer = setTimeout(() => {
+    disconnectTimers.delete(persistentId);
+    const room = rooms.get(code);
+    if (!room) return;
+    room.players = room.players.filter(p => p.persistentId !== persistentId);
+    if (room.players.length > 0 && !room.players.find(p => p.isHost)) {
+      room.players[0].isHost = true;
+    }
+    if (room.players.length === 0) {
+      clearRoomTimer(room);
+      rooms.delete(code);
+    } else {
+      io.to(code).emit('player-update', { players: room.players });
+    }
+  }, DISCONNECT_GRACE_MS);
+  disconnectTimers.set(persistentId, timer);
+}
+
+function cancelRemoval(persistentId) {
+  const timer = disconnectTimers.get(persistentId);
+  if (timer) {
+    clearTimeout(timer);
+    disconnectTimers.delete(persistentId);
+  }
+}
+
+function removePlayer(code, playerId, io) {
   const room = rooms.get(code);
   if (!room) return null;
+  const player = room.players.find(p => p.id === playerId);
+  if (!player) return room;
+
+  if (player.persistentId && io) {
+    // Grace period — don't remove immediately, give them 30s to reconnect
+    scheduleRemoval(code, player.persistentId, io);
+    return room;
+  }
+
+  // No persistentId — remove immediately
   room.players = room.players.filter(p => p.id !== playerId);
   if (room.players.length > 0 && !room.players.find(p => p.isHost)) {
     room.players[0].isHost = true;

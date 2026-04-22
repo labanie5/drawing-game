@@ -139,18 +139,25 @@ export default function Canvas({ canvasRef, socket, disabled }) {
     <div className="canvas-wrapper">
       {/* Toolbar */}
       <div className="toolbar">
-        <div className="tool-group">
-          <button
-            className={`tool-btn ${tool === 'pen' ? 'active' : ''}`}
-            onClick={() => setTool('pen')}
-            title="Pen"
-          >✏️</button>
-          <button
-            className={`tool-btn ${tool === 'eraser' ? 'active' : ''}`}
-            onClick={() => setTool('eraser')}
-            title="Eraser"
-          >🧹</button>
+        <button className="tool-btn tool-btn-clear" onClick={handleClear} title="Clear all">🗑️ Clear</button>
+        <button className="tool-btn" onClick={handleUndo} title="Undo">↩️</button>
+
+        <div className="toolbar-sep" />
+
+        <button className={`tool-btn ${tool === 'pen' ? 'active' : ''}`} onClick={() => setTool('pen')} title="Pen">✏️</button>
+        <button className={`tool-btn ${tool === 'eraser' ? 'active' : ''}`} onClick={() => setTool('eraser')} title="Eraser">🧹</button>
+
+        <div className="toolbar-sep" />
+
+        <div className="size-btns">
+          {SIZES.map((s, i) => (
+            <button key={s} className={`size-btn ${sizeIdx === i ? 'active' : ''}`} onClick={() => setSizeIdx(i)}>
+              <span style={{ width: s, height: s, borderRadius: '50%', background: '#333', display: 'inline-block' }} />
+            </button>
+          ))}
         </div>
+
+        <div className="toolbar-sep" />
 
         <div className="color-palette">
           {COLORS.map(c => (
@@ -161,23 +168,6 @@ export default function Canvas({ canvasRef, socket, disabled }) {
               onClick={() => { setColor(c); setTool('pen'); }}
             />
           ))}
-        </div>
-
-        <div className="size-btns">
-          {SIZES.map((s, i) => (
-            <button
-              key={s}
-              className={`size-btn ${sizeIdx === i ? 'active' : ''}`}
-              onClick={() => setSizeIdx(i)}
-            >
-              <span style={{ width: s, height: s, borderRadius: '50%', background: '#333', display: 'inline-block' }} />
-            </button>
-          ))}
-        </div>
-
-        <div className="tool-group">
-          <button className="tool-btn" onClick={handleUndo} title="Undo">↩️</button>
-          <button className="tool-btn tool-btn-clear" onClick={handleClear} title="Clear all">🗑️ Clear</button>
         </div>
       </div>
 

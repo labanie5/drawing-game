@@ -129,10 +129,7 @@ io.on('connection', (socket) => {
     const code = socketRoom.get(socket.id);
     socketRoom.delete(socket.id);
     if (!code) return;
-    const room = gm.removePlayer(code, socket.id);
-    if (room) {
-      io.to(code).emit('player-update', { players: room.players });
-    }
+    gm.removePlayer(code, socket.id, io);
     console.log(`[disconnect] ${socket.id} left ${code}`);
   });
 });
