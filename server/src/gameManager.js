@@ -1,8 +1,7 @@
 const { getRandomWord } = require('./words');
 
-const ROUND_DURATION = 80; // seconds
+const ROUND_DURATION = 80;
 
-// rooms: Map<code, RoomState>
 const rooms = new Map();
 
 function generateCode() {
@@ -14,11 +13,11 @@ function generateCode() {
   return code;
 }
 
-function createRoom({ hostId, hostName, rounds }) {
+function createRoom({ hostId, hostName, rounds, persistentId }) {
   const code = generateCode();
   const room = {
     code,
-    players: [{ id: hostId, name: hostName, score: 0, isHost: true }],
+    players: [{ id: hostId, name: hostName, score: 0, isHost: true, persistentId }],
     status: 'lobby',
     rounds: { total: Math.min(5, Math.max(3, rounds || 3)), current: 0 },
     drawerIndex: 0,
@@ -33,15 +32,24 @@ function createRoom({ hostId, hostName, rounds }) {
   return room;
 }
 
-function joinRoom({ code, playerId, playerName }) {
+function joinRoom({ code, playerId, playerName, persistentId }) {
   const room = rooms.get(code);
   if (!room) return { error: 'Room not found' };
+
+  // Reconnect by persistentId
+  if (persistentId) {
+    const existing = room.players.find(p => p.persistentId === persistentId);
+    if (existing) {
+      existing.id = playerId;
+      return { room, reconnected: true, player: existing };
+    }
+  }
+
   if (room.status !== 'lobby') return { error: 'Game already in progress' };
-  if (room.players.find(p => p.id === playerId)) return { room }; // reconnect
   if (room.players.find(p => p.name.toLowerCase() === playerName.toLowerCase())) {
     return { error: 'Name already taken in this room' };
   }
-  room.players.push({ id: playerId, name: playerName, score: 0, isHost: false });
+  room.players.push({ id: playerId, name: playerName, score: 0, isHost: false, persistentId });
   return { room };
 }
 
@@ -49,7 +57,6 @@ function removePlayer(code, playerId) {
   const room = rooms.get(code);
   if (!room) return null;
   room.players = room.players.filter(p => p.id !== playerId);
-  // Transfer host if needed
   if (room.players.length > 0 && !room.players.find(p => p.isHost)) {
     room.players[0].isHost = true;
   }
@@ -88,7 +95,6 @@ function startRound(code, io) {
 
   const drawer = room.players[room.drawerIndex % room.players.length];
 
-  // Send round-start to everyone; word only to drawer
   room.players.forEach(player => {
     const payload = {
       round: room.rounds.current,
@@ -96,22 +102,17 @@ function startRound(code, io) {
       drawerName: drawer.name,
       drawerId: drawer.id,
     };
-    if (player.id === drawer.id) {
-      payload.word = room.currentWord;
-    }
+    if (player.id === drawer.id) payload.word = room.currentWord;
     io.to(player.id).emit('round-start', payload);
   });
 
-  // Start countdown
   let seconds = ROUND_DURATION;
   io.to(code).emit('timer-tick', { seconds });
 
   room.timer = setInterval(() => {
     seconds -= 1;
     io.to(code).emit('timer-tick', { seconds });
-    if (seconds <= 0) {
-      endRound(code, io, null, false);
-    }
+    if (seconds <= 0) endRound(code, io, null, false);
   }, 1000);
 }
 
@@ -120,7 +121,7 @@ function handleGuess(code, playerId, guess, isAI, io) {
   if (!room || room.status !== 'playing') return;
 
   const drawer = room.players[room.drawerIndex % room.players.length];
-  if (playerId === drawer.id && !isAI) return; // drawer can't guess
+  if (playerId === drawer.id && !isAI) return;
 
   const player = isAI
     ? { id: 'ai', name: 'The AI' }
@@ -136,9 +137,7 @@ function handleGuess(code, playerId, guess, isAI, io) {
     isAI,
   });
 
-  if (correct) {
-    endRound(code, io, player, isAI);
-  }
+  if (correct) endRound(code, io, player, isAI);
 }
 
 function endRound(code, io, winner, aiWon) {
@@ -150,12 +149,9 @@ function endRound(code, io, winner, aiWon) {
 
   const drawer = room.players[room.drawerIndex % room.players.length];
 
-  // Score
   if (winner && !aiWon) {
     winner.score += 3;
     drawer.score += 2;
-  } else if (winner && aiWon) {
-    // AI won — no points
   }
 
   const scores = room.players.map(p => ({ name: p.name, score: p.score }));
@@ -167,10 +163,8 @@ function endRound(code, io, winner, aiWon) {
     scores,
   });
 
-  // Advance drawer index
   room.drawerIndex = (room.drawerIndex + 1) % room.players.length;
 
-  // Check if game over
   if (room.rounds.current >= room.rounds.total) {
     setTimeout(() => endGame(code, io), 4000);
   } else {
@@ -196,15 +190,10 @@ function endGame(code, io) {
 }
 
 function clearRoomTimer(room) {
-  if (room.timer) {
-    clearInterval(room.timer);
-    room.timer = null;
-  }
+  if (room.timer) { clearInterval(room.timer); room.timer = null; }
 }
 
-function getRoom(code) {
-  return rooms.get(code) || null;
-}
+function getRoom(code) { return rooms.get(code) || null; }
 
 function addStroke(code, stroke) {
   const room = rooms.get(code);
@@ -219,15 +208,13 @@ function clearStrokes(code) {
 function undoStrokes(code) {
   const room = rooms.get(code);
   if (!room) return [];
-  // Remove last stroke batch (grouped by same timestamp batch marker)
   const last = room.strokes[room.strokes.length - 1];
   if (!last) return [];
-  const batchId = last.batchId;
-  room.strokes = room.strokes.filter(s => s.batchId !== batchId);
+  room.strokes = room.strokes.filter(s => s.batchId !== last.batchId);
   return room.strokes;
 }
 
-function restartGame(code, io) {
+function restartGame(code) {
   const room = rooms.get(code);
   if (!room || room.status !== 'game-end') return { error: 'Game not over yet' };
   room.status = 'lobby';
@@ -239,15 +226,28 @@ function restartGame(code, io) {
   return { ok: true };
 }
 
+function getGameState(code, socketId) {
+  const room = rooms.get(code);
+  if (!room) return null;
+  const drawer = room.players[room.drawerIndex % room.players.length];
+  const player = room.players.find(p => p.id === socketId);
+  return {
+    status: room.status,
+    players: room.players,
+    rounds: room.rounds,
+    scores: room.players.map(p => ({ name: p.name, score: p.score })),
+    roundInfo: room.status === 'playing' || room.status === 'round-end' ? {
+      round: room.rounds.current,
+      totalRounds: room.rounds.total,
+      drawerName: drawer.name,
+      drawerId: drawer.id,
+      word: player?.id === drawer.id ? room.currentWord : undefined,
+    } : null,
+  };
+}
+
 module.exports = {
-  createRoom,
-  joinRoom,
-  removePlayer,
-  startGame,
-  handleGuess,
-  getRoom,
-  addStroke,
-  clearStrokes,
-  undoStrokes,
-  restartGame,
+  createRoom, joinRoom, removePlayer, startGame,
+  handleGuess, getRoom, addStroke, clearStrokes,
+  undoStrokes, restartGame, getGameState,
 };

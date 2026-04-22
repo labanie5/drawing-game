@@ -28,8 +28,8 @@ io.on('connection', (socket) => {
   console.log(`[connect] ${socket.id}`);
 
   // ── Create Room ──────────────────────────────────────────────
-  socket.on('create-room', ({ name, rounds }) => {
-    const room = gm.createRoom({ hostId: socket.id, hostName: name, rounds });
+  socket.on('create-room', ({ name, rounds, persistentId }) => {
+    const room = gm.createRoom({ hostId: socket.id, hostName: name, rounds, persistentId });
     socket.join(room.code);
     socketRoom.set(socket.id, room.code);
     socket.emit('room-created', {
@@ -41,8 +41,8 @@ io.on('connection', (socket) => {
   });
 
   // ── Join Room ────────────────────────────────────────────────
-  socket.on('join-room', ({ code, name }) => {
-    const result = gm.joinRoom({ code: code.toUpperCase(), playerId: socket.id, playerName: name });
+  socket.on('join-room', ({ code, name, persistentId }) => {
+    const result = gm.joinRoom({ code: code.toUpperCase(), playerId: socket.id, playerName: name, persistentId });
     if (result.error) {
       socket.emit('error', { message: result.error });
       return;
@@ -50,14 +50,30 @@ io.on('connection', (socket) => {
     const room = result.room;
     socket.join(room.code);
     socketRoom.set(socket.id, room.code);
-    socket.emit('room-joined', { code: room.code, players: room.players, rounds: room.rounds.total });
-    socket.to(room.code).emit('player-update', { players: room.players });
 
-    // Sync canvas strokes for late joiners
+    if (result.reconnected) {
+      // Send full game state to reconnecting player
+      const state = gm.getGameState(room.code, socket.id);
+      socket.emit('room-joined', {
+        code: room.code,
+        players: room.players,
+        rounds: room.rounds.total,
+        reconnected: true,
+        gameStatus: state.status,
+        roundInfo: state.roundInfo,
+        scores: state.scores,
+      });
+      socket.to(room.code).emit('player-update', { players: room.players });
+      console.log(`[room] ${name} reconnected to ${room.code}`);
+    } else {
+      socket.emit('room-joined', { code: room.code, players: room.players, rounds: room.rounds.total });
+      socket.to(room.code).emit('player-update', { players: room.players });
+      console.log(`[room] ${name} joined ${room.code}`);
+    }
+
     if (room.strokes.length > 0) {
       socket.emit('canvas-sync', { strokes: room.strokes });
     }
-    console.log(`[room] ${name} joined ${room.code}`);
   });
 
   // ── Start Game ───────────────────────────────────────────────

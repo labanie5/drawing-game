@@ -14,7 +14,7 @@ export default function Game({ gameState, setGameState, onLeave }) {
   const [roundData, setRoundData] = useState(initRoundData);
   const [seconds, setSeconds] = useState(80);
   const [messages, setMessages] = useState([]);
-  const [scores, setScores] = useState([]);
+  const [scores, setScores] = useState(gameState.reconnectScores || []);
   const [roundResult, setRoundResult] = useState(null); // { word, winnerName, aiWon, scores }
   const [gameOver, setGameOver] = useState(null);       // { finalScores }
   const [roundEnded, setRoundEnded] = useState(false);
@@ -169,9 +169,9 @@ export default function Game({ gameState, setGameState, onLeave }) {
         <div className="side-panel">
           <AIPanel
             canvasRef={activeCanvasRef}
-            currentWord={roundData?.word}
-            isActive={isDrawer && !roundEnded}
-            onAIWin={handleAIWin}
+            currentWord={isDrawer ? roundData?.word : null}
+            isActive={!!roundData && !roundEnded}
+            onAIWin={isDrawer ? handleAIWin : null}
           />
           <Scoreboard scores={scores} myId={myId} />
           <Chat

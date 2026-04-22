@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
 
-// Self-hosted model in /public/model/ — always available
 const QUICKDRAW_MODEL_URL = '/model/model.json';
 const CLASS_NAMES_URL = '/model/class_names.txt';
 
@@ -14,21 +13,15 @@ export function useQuickDraw({ canvasRef, currentWord, isActive, onAIWin }) {
   const [modelError, setModelError] = useState(false);
   const hasWonRef = useRef(false);
 
-  // Load model + class names once on mount
   useEffect(() => {
     let cancelled = false;
     async function loadModel() {
       try {
         await tf.ready();
-
-        // Load class names from self-hosted text file
         const res = await fetch(CLASS_NAMES_URL);
         const text = await res.text();
         labelsRef.current = text.trim().split('\n').map(l => l.trim());
-
-        // Load the Quick Draw CNN model
         const model = await tf.loadLayersModel(QUICKDRAW_MODEL_URL);
-
         if (!cancelled) {
           modelRef.current = model;
           setModelReady(true);
@@ -43,17 +36,19 @@ export function useQuickDraw({ canvasRef, currentWord, isActive, onAIWin }) {
   }, []);
 
   const runInference = useCallback(async () => {
-    if (!modelRef.current || !canvasRef.current || !currentWord) return;
+    // Run inference even without currentWord — just won't trigger AI win
+    if (!modelRef.current || !canvasRef?.current) return;
 
     const canvas = canvasRef.current;
-    if (canvas.width === 0 || canvas.height === 0) return;
+    if (!canvas.width || !canvas.height) return;
 
     try {
-      // Resize canvas to 28x28, white strokes on black background
       const offscreen = document.createElement('canvas');
       offscreen.width = 28;
       offscreen.height = 28;
       const ctx = offscreen.getContext('2d');
+
+      // Black background, then draw the canvas on top
       ctx.fillStyle = 'black';
       ctx.fillRect(0, 0, 28, 28);
       ctx.drawImage(canvas, 0, 0, 28, 28);
@@ -61,23 +56,33 @@ export function useQuickDraw({ canvasRef, currentWord, isActive, onAIWin }) {
       const imageData = ctx.getImageData(0, 0, 28, 28);
       const data = imageData.data;
 
-      // Build [1, 28, 28, 1] grayscale tensor, invert colors
+      // Check if canvas has any actual drawing (not just white background)
+      let hasContent = false;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] < 240 || data[i + 1] < 240 || data[i + 2] < 240) {
+          hasContent = true;
+          break;
+        }
+      }
+      if (!hasContent) return; // Nothing drawn yet
+
       const input = tf.tidy(() => {
         const gray = new Float32Array(28 * 28);
         for (let i = 0; i < 28 * 28; i++) {
           const r = data[i * 4];
           const g = data[i * 4 + 1];
           const b = data[i * 4 + 2];
-          // Invert: canvas is white bg/dark strokes → model expects black bg/white strokes
+          // Invert: white bg → black, dark strokes → white (Quick Draw format)
           gray[i] = 1 - (0.299 * r + 0.587 * g + 0.114 * b) / 255;
         }
         return tf.tensor4d(gray, [1, 28, 28, 1]);
       });
 
-      const predictions = await modelRef.current.predict(input).data();
+      const predTensor = modelRef.current.predict(input);
+      const predictions = await predTensor.data();
       input.dispose();
+      predTensor.dispose();
 
-      // Map to labels and sort by confidence
       const indexed = Array.from(predictions).map((confidence, i) => ({
         label: labelsRef.current[i] || `class_${i}`,
         confidence,
@@ -87,13 +92,13 @@ export function useQuickDraw({ canvasRef, currentWord, isActive, onAIWin }) {
 
       setAiGuesses(top5);
 
-      // AI wins if top guess matches the word with high confidence
-      if (!hasWonRef.current && top5[0].confidence >= 0.80) {
+      // Only trigger AI win if we know the word (drawer's device)
+      if (currentWord && onAIWin && !hasWonRef.current && top5[0].confidence >= 0.75) {
         const guessed = top5[0].label.toLowerCase().trim();
         const word = currentWord.toLowerCase().trim();
         if (guessed === word) {
           hasWonRef.current = true;
-          onAIWin?.(top5[0].label);
+          onAIWin(top5[0].label);
         }
       }
     } catch (err) {
@@ -101,7 +106,6 @@ export function useQuickDraw({ canvasRef, currentWord, isActive, onAIWin }) {
     }
   }, [canvasRef, currentWord, onAIWin]);
 
-  // Start/stop inference loop when round is active
   useEffect(() => {
     if (!isActive || !modelReady) {
       clearInterval(intervalRef.current);
@@ -109,7 +113,9 @@ export function useQuickDraw({ canvasRef, currentWord, isActive, onAIWin }) {
     }
     hasWonRef.current = false;
     setAiGuesses([]);
-    intervalRef.current = setInterval(runInference, 2000);
+    // Run immediately then every 1 second
+    runInference();
+    intervalRef.current = setInterval(runInference, 1000);
     return () => clearInterval(intervalRef.current);
   }, [isActive, modelReady, runInference]);
 
