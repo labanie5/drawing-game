@@ -93,12 +93,14 @@ export function useQuickDraw({ canvasRef, currentWord, isActive, onAIWin }) {
       setAiGuesses(top5);
 
       // Only trigger AI win if we know the word (drawer's device)
-      if (currentWord && onAIWin && !hasWonRef.current && top5[0].confidence >= 0.75) {
-        const guessed = top5[0].label.toLowerCase().trim();
+      if (currentWord && onAIWin && !hasWonRef.current) {
         const word = currentWord.toLowerCase().trim();
-        if (guessed === word) {
+        const match = top5.find(
+          g => g.label.toLowerCase().trim() === word && g.confidence >= 0.3
+        );
+        if (match) {
           hasWonRef.current = true;
-          onAIWin(top5[0].label);
+          onAIWin(match.label);
         }
       }
     } catch (err) {
@@ -113,9 +115,9 @@ export function useQuickDraw({ canvasRef, currentWord, isActive, onAIWin }) {
     }
     hasWonRef.current = false;
     setAiGuesses([]);
-    // Run immediately then every 1 second
+    // Run immediately then every 500ms
     runInference();
-    intervalRef.current = setInterval(runInference, 1000);
+    intervalRef.current = setInterval(runInference, 500);
     return () => clearInterval(intervalRef.current);
   }, [isActive, modelReady, runInference]);
 

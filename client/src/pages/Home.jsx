@@ -12,10 +12,11 @@ function saveSession(code, name) {
 }
 
 export default function Home({ onJoin }) {
-  const [view, setView] = useState('main');
+  const roomParam = new URLSearchParams(window.location.search).get('room');
+  const [view, setView] = useState(roomParam ? 'join' : 'main');
   const [name, setName] = useState('');
   const [rounds, setRounds] = useState(3);
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(roomParam ? roomParam.toUpperCase() : '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 

@@ -177,7 +177,7 @@ export default function Canvas({ canvasRef, socket, disabled }) {
 
         <div className="tool-group">
           <button className="tool-btn" onClick={handleUndo} title="Undo">↩️</button>
-          <button className="tool-btn" onClick={handleClear} title="Clear">🗑️</button>
+          <button className="tool-btn tool-btn-clear" onClick={handleClear} title="Clear all">🗑️ Clear</button>
         </div>
       </div>
 

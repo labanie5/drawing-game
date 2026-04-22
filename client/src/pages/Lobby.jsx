@@ -23,9 +23,17 @@ export default function Lobby({ gameState, setGameState, onStart, onLeave }) {
     socket.emit('start-game');
   }
 
-  function handleCopy() {
+  function handleCopyCode() {
     navigator.clipboard.writeText(code).then(() => {
-      setCopied(true);
+      setCopied('code');
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function handleCopyLink() {
+    const url = `${window.location.origin}${window.location.pathname}?room=${code}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied('link');
       setTimeout(() => setCopied(false), 2000);
     });
   }
@@ -45,10 +53,15 @@ export default function Lobby({ gameState, setGameState, onStart, onLeave }) {
       <div className="lobby-code-card">
         <p className="code-label">Room Code</p>
         <div className="code-display">{code}</div>
-        <button className="btn btn-ghost btn-sm" onClick={handleCopy}>
-          {copied ? 'Copied!' : 'Copy Code'}
-        </button>
-        <p className="code-hint">Share this code with friends to join</p>
+        <div className="lobby-share-buttons">
+          <button className="btn btn-ghost btn-sm" onClick={handleCopyCode}>
+            {copied === 'code' ? 'Copied!' : 'Copy Code'}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={handleCopyLink}>
+            {copied === 'link' ? 'Link Copied!' : 'Copy Invite Link'}
+          </button>
+        </div>
+        <p className="code-hint">Share the invite link so friends can join instantly</p>
       </div>
 
       <div className="lobby-info">

@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const gm = require('./gameManager');
@@ -7,17 +8,14 @@ const gm = require('./gameManager');
 const app = express();
 const server = http.createServer(app);
 
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+const CLIENT_DIST = path.join(__dirname, '../../client/dist');
 
 const io = new Server(server, {
-  cors: {
-    origin: CLIENT_ORIGIN,
-    methods: ['GET', 'POST'],
-  },
+  cors: { origin: '*', methods: ['GET', 'POST'] },
 });
 
-app.use(cors({ origin: CLIENT_ORIGIN }));
 app.use(express.json());
+app.use(express.static(CLIENT_DIST));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
@@ -139,5 +137,8 @@ io.on('connection', (socket) => {
   });
 });
 
+// SPA fallback — serve index.html for any non-API route
+app.get('*', (_req, res) => res.sendFile(path.join(CLIENT_DIST, 'index.html')));
+
 const PORT = process.env.PORT || 3002;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
